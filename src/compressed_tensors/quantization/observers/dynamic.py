@@ -32,4 +32,4 @@ class DynamicObserver(MemorylessObserver):
     Tensor.
     """
 
-    DYNAMIC = False
+    DYNAMIC = True
