@@ -11,17 +11,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import pytest
 import torch
-from compressed_tensors import load_compressed, save_compressed
+from compressed_tensors import load_compressed, save_compressed, save_compressed_model
 from compressed_tensors.config import BitmaskConfig
+from safetensors import safe_open
+from safetensors.torch import save_model
+from transformers import AutoModelForCausalLM
 
 
 @pytest.fixture
 def tensors():
     tensors = {"tensor_1": torch.Tensor([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])}
     return tensors
+
+
+@pytest.fixture
+def llama_model(tmp_path):
+    model_name = "neuralmagic/llama2.c-stories110M-pruned50"
+    model = AutoModelForCausalLM.from_pretrained(model_name, cache_dir=tmp_path)
+    yield model
 
 
 def test_save_compressed_sparse_bitmask(tmp_path, tensors):
@@ -102,3 +111,33 @@ def test_load_compressed_no_compression(tmp_path, tensors):
     loaded_tensors = load_compressed(tmp_path / "model.safetensors")
     for key in tensors:
         assert torch.allclose(tensors[key], loaded_tensors[key])
+
+
+def test_save_compressed_model(tmp_path, llama_model):
+    path_to_uncompressed = tmp_path / "model_uncompressed.safetensors"
+    path_to_compressed = tmp_path / "model_compressed.safetensors"
+
+    # save uncompressed model
+    save_model(llama_model, path_to_uncompressed)
+    size_uncompressed_kb = path_to_uncompressed.stat().st_size / 1024
+
+    # save compressed model
+    save_compressed_model(
+        llama_model, path_to_compressed, compression_format="sparse-bitmask"
+    )
+    size_compressed_kb = path_to_compressed.stat().st_size / 1024
+
+    # compare that the are the same after loading
+    state_dict_1 = {}
+    with safe_open(path_to_uncompressed, framework="pt") as f:
+        for key in f.keys():
+            state_dict_1[key] = f.get_tensor(key)
+    state_dict_2 = load_compressed(
+        path_to_compressed, BitmaskConfig(format="sparse-bitmask")
+    )
+    assert all(
+        torch.allclose(state_dict_1[key], state_dict_2[key]) for key in state_dict_1
+    )
+    # make sure that compressed model is smaller
+    # than uncompressed by roughly 1.14 (value established empirically)
+    assert pytest.approx(size_uncompressed_kb / size_compressed_kb, 0.01) == 1.14

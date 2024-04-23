@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from pathlib import Path
 from typing import Dict, Optional, Union
 
@@ -19,12 +20,20 @@ from compressed_tensors.base import CONFIG_NAME
 from compressed_tensors.compressors import ModelCompressor
 from compressed_tensors.config import CompressionConfig, CompressionFormat
 from safetensors import safe_open
-from safetensors.torch import save_file
+from safetensors.torch import save_file, save_model
 from torch import Tensor
+from torch.nn import Module
 from transformers import AutoConfig
 
 
-__all__ = ["infer_compressor_from_model_config", "load_compressed", "save_compressed"]
+__all__ = [
+    "infer_compressor_from_model_config",
+    "load_compressed",
+    "save_compressed",
+    "save_compressed_model",
+]
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def infer_compressor_from_model_config(
@@ -107,7 +116,7 @@ def load_compressed(
     if compression_config is None:
         # no compression applied
         tensors = {}
-        with safe_open(compressed_tensors, framework="pt", device="cpu") as f:
+        with safe_open(compressed_tensors, framework="pt", device=device) as f:
             for key in f.keys():
                 tensors[key] = f.get_tensor(key)
         return tensors
@@ -118,3 +127,35 @@ def load_compressed(
         compression_format, config=compression_config
     )
     return dict(compressor.decompress(compressed_tensors))
+
+
+def save_compressed_model(
+    model: Module,
+    filename: str,
+    compression_format: Optional[CompressionFormat] = None,
+    force_contiguous: bool = True,
+):
+    """
+    Wrapper around safetensors `save_model` helper function, which allows for
+    saving compressed model to disk. Note: if compression_format is not None,
+    the model is assumed to have a state_dict with  unique entries
+
+    :param model: model to save on disk
+    :param filename: filename location to save the file
+    :param compression_format: compression format used for the model
+    :param force_contiguous: forcing the state_dict to be saved as contiguous tensors
+    """
+    if compression_format is None:
+        # use the default save_model function from safetensors
+        save_model(model, filename, force_contiguous=force_contiguous)
+        return
+
+    state_dict = model.state_dict()
+    if force_contiguous:
+        state_dict = {k: v.contiguous() for k, v in state_dict.items()}
+    try:
+        save_compressed(state_dict, filename, compression_format=compression_format)
+    except ValueError as e:
+        msg = str(e)
+        msg += " Or use save_compressed_model(..., force_contiguous=True), read the docs for potential caveats."  # noqa E501
+        raise ValueError(msg)
