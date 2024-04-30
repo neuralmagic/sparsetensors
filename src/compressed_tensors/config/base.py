@@ -25,6 +25,7 @@ __all__ = ["CompressionConfig", "CompressionFormat"]
 class CompressionFormat(Enum):
     dense_sparsity = "dense-sparsity"
     sparse_bitmask = "sparse-bitmask"
+    exllama_4bit = "exllama-4bit"
 
 
 class CompressionConfig(RegistryMixin, BaseModel):
