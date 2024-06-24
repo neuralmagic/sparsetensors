@@ -266,7 +266,14 @@ class ModelCompressor:
             self._replace_weights(dense_gen, model)
 
             def update_status(module):
-                module.quantization_status = QuantizationStatus.FROZEN
+                import torch
+
+                first_param_dtype = next(model.parameters()).dtype
+                if first_param_dtype == torch.float16:
+                    # loading unquantized model
+                    module.quantization_status = QuantizationStatus.INITIALIZED
+                else:
+                    module.quantization_status = QuantizationStatus.FROZEN
 
             model.apply(update_status)
             setattr(model, QUANTIZATION_CONFIG_NAME, self.quantization_config)
