@@ -11,11 +11,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# flake8: noqa
 
 from .base import *
 
-# flake8: noqa
+# a reference to compressed_tensors.utils is created
+#  to restore mangled access to the utils module
+from .utils import *
+
+
+compressed_tensors_utils = utils
+
+# importing .compressors mangles the access to
+# the compressed_tensors.utils module
 from .compressors import *
 from .config import *
 from .quantization import QuantizationConfig, QuantizationStatus
-from .utils import *
+
+
+# restore mangled access to the utils module
+# now compressed_tensors.utils refers to the correct utils module
+utils = compressed_tensors_utils
