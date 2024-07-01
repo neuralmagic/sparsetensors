@@ -91,6 +91,7 @@ class QuantizationArgs(BaseModel, use_enum_values=True):
             "Observers constructor excluding quantization range or symmetry"
         ),
     )
+    actorder: bool = False
 
     def get_observer(self):
         """
