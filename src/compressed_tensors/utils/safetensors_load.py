@@ -16,6 +16,7 @@ import json
 import os
 import re
 import struct
+from pathlib import Path
 from typing import Dict, List, Optional
 
 from safetensors import safe_open
@@ -32,6 +33,7 @@ __all__ = [
     "get_nested_weight_mappings",
     "get_quantization_state_dict",
     "is_quantization_param",
+    "validate_safetensors_file_path",
 ]
 
 
@@ -236,3 +238,25 @@ def is_quantization_param(name: str) -> bool:
         return True
 
     return False
+
+
+def validate_safetensors_file_path(filepath: str):
+    """
+    Given a file path, it is valid if:
+        - The file exists
+        - The file is either a single .safetensors file or a
+            directory containing .safetensors files
+
+    :param filepath: A string file path to validate
+    """
+
+    filepath_: Path = Path(filepath)
+
+    if not filepath_.exists():
+        raise FileNotFoundError(f"File not found: {filepath}")
+
+    if filepath_.is_dir() and not any(filepath_.glob("*.safetensors")):
+        raise FileNotFoundError(f"No .safetensors files found in directory: {filepath}")
+
+    if filepath_.is_file() and not filepath_.suffix == ".safetensors":
+        raise ValueError(f"File must be a .safetensors file: {filepath}")
